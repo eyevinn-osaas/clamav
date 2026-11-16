@@ -1,7 +1,7 @@
 #!/bin/bash
 # OSC entrypoint for ClamAV.
-# clamd only speaks raw TCP (port 3310), so a tiny HTTP stub is started on $PORT
-# for the platform's health check. All upstream tuning stays available through
+# clamd only speaks raw TCP (port 3310) and OSC only exposes HTTP, so osc-scan-api
+# is started on $PORT as an HTTP front-end (health, /scan, /version). All upstream tuning stays available through
 # CLAMD_CONF_<Option> and FRESHCLAM_CONF_<Option> env vars (handled by /init).
 set -eu
 
@@ -14,14 +14,7 @@ export CLAMD_CONF_LogFile="${CLAMD_CONF_LogFile:-/dev/stdout}"
 export CLAMD_CONF_LogTime="${CLAMD_CONF_LogTime:-yes}"
 export FRESHCLAM_CONF_UpdateLogFile="${FRESHCLAM_CONF_UpdateLogFile:-/dev/stdout}"
 
-# HTTP health stub
-WWW=/tmp/www
-mkdir -p "$WWW"
-cat > "$WWW/index.html" <<HTML
-<html><body><h1>ClamAV</h1>
-<p>clamd is listening on TCP port 3310. Use clamdscan, clamd-compatible clients or <code>INSTREAM</code> to scan files.</p>
-</body></html>
-HTML
-httpd -f -p "0.0.0.0:${PORT}" -h "$WWW" &
+# HTTP scan API (health on /, POST /scan, GET /version); talks to local clamd
+PORT="$PORT" CLAMD_ADDR="127.0.0.1:${CLAMD_CONF_TCPSocket}" /usr/local/bin/osc-scan-api &
 
 exec "$@"

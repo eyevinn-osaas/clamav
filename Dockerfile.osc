@@ -1,14 +1,22 @@
 # OSC image for ClamAV: wraps the official clamav/clamav base image (no bundled
 # signatures; freshclam downloads them on first start, ideally onto a volume
-# mounted at /var/lib/clamav).
+# mounted at /var/lib/clamav) and adds a small HTTP scan API, because OSC only
+# exposes HTTP(S) and clamd speaks raw TCP.
 ARG CLAMAV_VERSION=1.5.4
+
+FROM golang:1.23-alpine AS scanapi
+WORKDIR /src
+COPY osc-scan-api/ ./
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /osc-scan-api .
+
 FROM clamav/clamav:${CLAMAV_VERSION}_base
 
-RUN apk add --no-cache bash busybox-extras
+RUN apk add --no-cache bash
 
+COPY --from=scanapi --chmod=755 /osc-scan-api /usr/local/bin/osc-scan-api
 COPY --chmod=755 osc-entrypoint.sh /usr/local/bin/osc-entrypoint.sh
 
-# 8080: HTTP health stub (platform), 3310: clamd TCP (INSTREAM/PING/VERSION)
+# 8080: HTTP scan API (platform), 3310: clamd TCP (cluster-internal)
 EXPOSE 8080 3310
 
 ENTRYPOINT ["/usr/local/bin/osc-entrypoint.sh"]
