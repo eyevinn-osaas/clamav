@@ -1,0 +1,15 @@
+# OSC image for ClamAV: wraps the official clamav/clamav base image (no bundled
+# signatures; freshclam downloads them on first start, ideally onto a volume
+# mounted at /var/lib/clamav).
+ARG CLAMAV_VERSION=1.5.4
+FROM clamav/clamav:${CLAMAV_VERSION}_base
+
+RUN apk add --no-cache bash busybox-extras
+
+COPY --chmod=755 osc-entrypoint.sh /usr/local/bin/osc-entrypoint.sh
+
+# 8080: HTTP health stub (platform), 3310: clamd TCP (INSTREAM/PING/VERSION)
+EXPOSE 8080 3310
+
+ENTRYPOINT ["/usr/local/bin/osc-entrypoint.sh"]
+CMD ["/init"]
